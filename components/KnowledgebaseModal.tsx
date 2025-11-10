@@ -1,21 +1,36 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { XMarkIcon, DocumentTextIcon, ArrowUpTrayIcon, TrashIcon } from './Icons';
-import { KnowledgebaseFile, KnowledgebaseSection } from '../types';
+import { KnowledgebaseFile, KnowledgebaseSection, AgentName } from '../types';
+import { AGENT_CONFIG } from '../config';
+
+const KB_DOC_LIMIT = 1000;
 
 interface KnowledgebaseModalProps {
   isOpen: boolean;
   onClose: () => void;
   knowledgebaseSections: KnowledgebaseSection[];
-  setKnowledgebaseSections: React.Dispatch<React.SetStateAction<KnowledgebaseSection[]>>;
+  setKnowledgebaseSections: (sections: KnowledgebaseSection[]) => void;
+  activeAgent: AgentName;
 }
 
-const KnowledgebaseModal: React.FC<KnowledgebaseModalProps> = ({ isOpen, onClose, knowledgebaseSections, setKnowledgebaseSections }) => {
+const KnowledgebaseModal: React.FC<KnowledgebaseModalProps> = ({ isOpen, onClose, knowledgebaseSections, setKnowledgebaseSections, activeAgent }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [sectionTitle, setSectionTitle] = useState('');
   const [stagedFiles, setStagedFiles] = useState<KnowledgebaseFile[]>([]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
+  const currentDocCount = useMemo(() => 
+    knowledgebaseSections.reduce((acc, section) => acc + section.files.length, 0),
+    [knowledgebaseSections]
+  );
+
   const handleFileProcessing = useCallback((files: FileList) => {
+    const totalAfterAdd = currentDocCount + stagedFiles.length + files.length;
+    if (totalAfterAdd > KB_DOC_LIMIT) {
+        alert(`You can't add these files. This would exceed the ${KB_DOC_LIMIT} document limit for this agent.`);
+        return;
+    }
+
     const validFiles: File[] = Array.from(files).filter(file => 
       /\.(txt|pdf|docx)$/i.test(file.name)
     );
@@ -40,7 +55,7 @@ const KnowledgebaseModal: React.FC<KnowledgebaseModalProps> = ({ isOpen, onClose
         setStagedFiles(prev => [...prev, { name: file.name, content: `[Content of non-text file: ${file.name}]` }]);
       }
     });
-  }, [stagedFiles]);
+  }, [stagedFiles, currentDocCount]);
 
   const handleDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
@@ -67,27 +82,36 @@ const KnowledgebaseModal: React.FC<KnowledgebaseModalProps> = ({ isOpen, onClose
   
   const handleCreateSection = () => {
     if (!sectionTitle.trim() || stagedFiles.length === 0) return;
+    
+    const totalDocs = currentDocCount + stagedFiles.length;
+    if (totalDocs > KB_DOC_LIMIT) {
+        alert(`Cannot create section. The total number of documents for this agent would exceed the limit of ${KB_DOC_LIMIT}.`);
+        return;
+    }
+
     const newSection: KnowledgebaseSection = {
         id: `section-${Date.now()}`,
         title: sectionTitle.trim(),
         files: stagedFiles,
     };
-    setKnowledgebaseSections(prev => [...prev, newSection]);
+    setKnowledgebaseSections([...knowledgebaseSections, newSection]);
     setSectionTitle('');
     setStagedFiles([]);
   };
 
   const handleRemoveFile = (sectionId: string, fileName: string) => {
-    setKnowledgebaseSections(prev => prev.map(section => {
+    const newSections = knowledgebaseSections.map(section => {
       if (section.id === sectionId) {
         return { ...section, files: section.files.filter(f => f.name !== fileName) };
       }
       return section;
-    }).filter(section => section.files.length > 0)); // Also remove section if it becomes empty
+    }).filter(section => section.files.length > 0); // Also remove section if it becomes empty
+    
+    setKnowledgebaseSections(newSections);
   };
   
   const handleRemoveSection = (sectionId: string) => {
-    setKnowledgebaseSections(prev => prev.filter(s => s.id !== sectionId));
+    setKnowledgebaseSections(knowledgebaseSections.filter(s => s.id !== sectionId));
   };
   
   const toggleSection = (sectionId: string) => {
@@ -104,6 +128,8 @@ const KnowledgebaseModal: React.FC<KnowledgebaseModalProps> = ({ isOpen, onClose
 
   if (!isOpen) return null;
 
+  const agentTitle = AGENT_CONFIG[activeAgent]?.title || 'Agent';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div 
@@ -112,10 +138,16 @@ const KnowledgebaseModal: React.FC<KnowledgebaseModalProps> = ({ isOpen, onClose
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700/50 flex-shrink-0">
-          <h2 className="text-2xl font-bold">Manage Knowledgebase</h2>
-          <button onClick={onClose} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
-            <XMarkIcon className="w-6 h-6" />
-          </button>
+          <div>
+            <h2 className="text-2xl font-bold">Knowledgebase</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">For {agentTitle}</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-slate-400">{currentDocCount} / {KB_DOC_LIMIT} documents</span>
+            <button onClick={onClose} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
+                <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
         </div>
         
         <div className="p-6 space-y-6 overflow-y-auto">

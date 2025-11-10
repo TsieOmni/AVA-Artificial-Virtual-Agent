@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Sender, Message, ImageForApi, ChatSession, KnowledgebaseSection, AgentName, InteractiveElement } from './types';
 import { geminiService } from './services/geminiService';
@@ -120,6 +121,10 @@ const defaultAllSessions: Record<AgentName, ChatSession[]> = {
   entrepreneur: [],
 };
 
+const defaultKnowledgebases: Record<AgentName, KnowledgebaseSection[]> = {
+    ava: [], tutor: [], academics: [], work: [], entrepreneur: [],
+};
+
 export default function App({ onLogout }: { onLogout: () => void }) {
   const [isAdmin] = useState(true); // Admin toggle for demo
   const [allSessions, setAllSessions] = useState<Record<AgentName, ChatSession[]>>(defaultAllSessions);
@@ -159,9 +164,9 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const [isMicActive, setIsMicActive] = useState(false);
   const [isAiResponding, setIsAiResponding] = useState(false);
 
-  const [knowledgebaseSections, setKnowledgebaseSections] = useState<KnowledgebaseSection[]>(() => {
-    const savedSections = localStorage.getItem('knowledgebaseSections');
-    return savedSections ? JSON.parse(savedSections) : [];
+  const [knowledgebases, setKnowledgebases] = useState<Record<AgentName, KnowledgebaseSection[]>>(() => {
+    const savedKbs = localStorage.getItem('agentKnowledgebases');
+    return savedKbs ? JSON.parse(savedKbs) : defaultKnowledgebases;
   });
   
   const [userData, setUserData] = useState({
@@ -289,8 +294,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   }, [isCameraOn, removeAttachments, activeAgent]);
   
   useEffect(() => {
-    localStorage.setItem('knowledgebaseSections', JSON.stringify(knowledgebaseSections));
-  }, [knowledgebaseSections]);
+    localStorage.setItem('agentKnowledgebases', JSON.stringify(knowledgebases));
+  }, [knowledgebases]);
 
   useEffect(() => {
     localStorage.setItem('appSettings', JSON.stringify(appSettings));
@@ -587,7 +592,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
 
     try {
       const historyForApi = updatedAgentSessions.find(s => s.id === activeChatId)?.messages ?? [];
-      const aiResponse = await geminiService.sendMessage(userMessageTextForApi, historyForApi, knowledgebaseSections, firstName, activeAgent, appSettings.language, currentImageForApi ?? undefined);
+      const agentKb = knowledgebases[activeAgent] || [];
+      const aiResponse = await geminiService.sendMessage(userMessageTextForApi, historyForApi, agentKb, firstName, activeAgent, appSettings.language, currentImageForApi ?? undefined);
       speak(aiResponse.text);
 
       const aiMessage: Message = {
@@ -618,7 +624,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     } finally {
       setIsLoading(false);
     }
-  }, [userInput, imageForPreview, imageForApi, attachedFile, isLoading, activeChatId, activeAgent, allSessions, knowledgebaseSections, removeAttachments, speak, firstName, activeAgentSessions, activeChat, appSettings.language]);
+  }, [userInput, imageForPreview, imageForApi, attachedFile, isLoading, activeChatId, activeAgent, allSessions, knowledgebases, removeAttachments, speak, firstName, activeAgentSessions, activeChat, appSettings.language]);
   
   const startCamera = useCallback(async (mode: 'user' | 'environment') => {
     if (videoStreamRef.current) stopCamera();
@@ -1485,15 +1491,18 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         <KnowledgebaseModal
           isOpen={isKnowledgebaseModalOpen}
           onClose={() => setIsKnowledgebaseModalOpen(false)}
-          knowledgebaseSections={knowledgebaseSections}
-          setKnowledgebaseSections={setKnowledgebaseSections}
+          knowledgebaseSections={knowledgebases[activeAgent] || []}
+          setKnowledgebaseSections={(newSections) => {
+            setKnowledgebases(prev => ({ ...prev, [activeAgent]: newSections }));
+          }}
+          activeAgent={activeAgent}
         />
         {blackboardData && (
           <BlackboardModal
             isOpen={!!blackboardData}
             onClose={handleCloseBlackboard}
             sessionData={blackboardData}
-            knowledgebaseSections={knowledgebaseSections}
+            knowledgebaseSections={knowledgebases[activeAgent] || []}
             userName={firstName}
           />
         )}
