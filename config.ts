@@ -19,7 +19,7 @@ export const AGENT_CONFIG: Record<AgentName, {
     promptStarters: { name: string, icon: React.ReactElement, iconBgColor: string, prompt: string }[];
 }> = {
     ava: {
-        title: 'Ava',
+        title: 'AVA',
         icon: null,
         subtitle: 'What can I help you with?',
         promptStarters: [
