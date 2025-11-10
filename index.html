@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ava</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --color-bg-primary: #1F2437;
+        --color-bg-secondary: #171C2E;
+        --color-bg-tertiary: #2C3249;
+        --color-bg-tertiary-hover: #3a405a;
+        --color-accent: #6A6DFF;
+        --color-accent-hover: #585bde;
+        --color-text-primary: #FFFFFF;
+        --color-text-secondary: #A0A3BD;
+        --color-border: #2C3249;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--color-bg-secondary);
+        color: var(--color-text-primary);
+      }
+      /* Simple scrollbar styling */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: var(--color-bg-secondary);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--color-bg-tertiary);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+      
+      /* Bubble containers establish relative positioning */
+      .user-bubble-container {
+        position: relative;
+      }
+
+      /* Common pseudo-element styles */
+      .user-bubble-container::before, .user-bubble-container::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        height: 20px;
+      }
+
+      /* User bubble (right) */
+      .user-bubble-container::before { /* Tail */
+        right: -8px;
+        width: 20px;
+        border-bottom-left-radius: 15px;
+      }
+      .user-bubble-container::after { /* Cutout */
+        right: -10px;
+        width: 10px;
+        background: var(--color-bg-secondary);
+        border-bottom-left-radius: 10px;
+      }
+
+      /* User Bubble Colors for the tail */
+      .user-bubble-container-default::before { background: #6A6DFF; }
+      .user-bubble-container-blue::before { background: #3b82f6; }
+      .user-bubble-container-green::before { background: #22c55e; }
+      .user-bubble-container-purple::before { background: #8b5cf6; }
+      .user-bubble-container-red::before { background: #ef4444; }
+      .user-bubble-container-yellow::before { background: #eab308; }
+
+      /* Waveform animation for AI responding indicator */
+      @keyframes wave {
+        0%, 100% { transform: scaleY(0.5); }
+        50% { transform: scaleY(1.5); }
+      }
+      .animate-wave {
+        animation: wave 1.2s ease-in-out infinite;
+        transform-origin: bottom;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.28.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
