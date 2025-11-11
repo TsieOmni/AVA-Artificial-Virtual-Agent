@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Sender, Message, ImageForApi, ChatSession, KnowledgebaseSection, AgentName, InteractiveElement } from './types';
 import { geminiService } from './services/geminiService';
-// FIX: Import `AvaLogo` to resolve 'Cannot find name' error.
-import { SendIcon, MicrophoneIcon, XCircleIcon, SpeakerWaveIcon, SpeakerXMarkIcon, VideoCameraIcon, CameraSwitchIcon, Bars3Icon, PencilSquareIcon, MagnifyingGlassIcon, BookOpenIcon, UserCircleIcon, WrenchScrewdriverIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, PlusCircleIcon, PhotoIcon, DocumentArrowUpIcon, DocumentTextIcon, CameraIcon, ArrowUpTrayIcon, XMarkIcon, PlusIcon, UsersIcon, HomeIcon, AvaLogo, ArrowLeftIcon, CubeIcon } from './components/Icons';
+import { SendIcon, MicrophoneIcon, XCircleIcon, SpeakerWaveIcon, SpeakerXMarkIcon, VideoCameraIcon, CameraSwitchIcon, Bars3Icon, PencilSquareIcon, MagnifyingGlassIcon, BookOpenIcon, UserCircleIcon, WrenchScrewdriverIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, PlusCircleIcon, PhotoIcon, DocumentArrowUpIcon, DocumentTextIcon, CameraIcon, ArrowUpTrayIcon, XMarkIcon, PlusIcon, UsersIcon, HomeIcon, AvaLogo, ArrowLeftIcon, CubeIcon, RocketLaunchIcon, ArrowDownIcon, EllipsisHorizontalIcon, ArchiveBoxIcon, TrashIcon } from './components/Icons';
 import { ACCENT_COLOR_MAP, AGENT_CONFIG } from './config';
 import AccountModal from './components/AccountModal';
 import PersonalizationModal, { PersonalizationSettings } from './components/PersonalizationModal';
@@ -19,6 +18,9 @@ import LoadingIndicator from './components/LoadingIndicator';
 import { LiveServerMessage, Blob } from '@google/genai';
 import IntegrationsModal from './components/IntegrationsModal';
 import AdminPanelModal from './components/AdminPanelModal';
+import PricingModal from './components/PricingModal';
+import DeleteChatModal from './components/DeleteChatModal';
+import CookiePreferenceModal from './components/CookiePreferenceModal';
 
 const getFormattedTimestamp = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
@@ -75,9 +77,7 @@ function createBlob(data: Float32Array): Blob {
     const l = data.length;
     const int16 = new Int16Array(l);
     for (let i = 0; i < l; i++) {
-        // Clamp the value to avoid issues with out-of-range data
         const s = Math.max(-1, Math.min(1, data[i]));
-        // Scale to 16-bit integer range
         int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
     return {
@@ -143,6 +143,8 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
   const [isIntegrationsModalOpen, setIsIntegrationsModalOpen] = useState(false);
   const [isAdminPanelModalOpen, setIsAdminPanelModalOpen] = useState(false);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
+  const [isCookieModalOpen, setIsCookieModalOpen] = useState(false);
   const [blackboardData, setBlackboardData] = useState<{ image: string; userMessage: Message; aiMessage: Message; history: Message[] } | null>(null);
 
   const [userInput, setUserInput] = useState('');
@@ -155,12 +157,21 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [showScrollButton, setShowScrollButton] = useState(false);
   
   // State for Live API interaction
   const [liveHighlights, setLiveHighlights] = useState<InteractiveElement[]>([]);
   const [liveAiComment, setLiveAiComment] = useState<string | null>(null);
   const [isMicActive, setIsMicActive] = useState(false);
   const [isAiResponding, setIsAiResponding] = useState(false);
+
+  // State for chat history management
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<ChatSession | null>(null);
+
 
   const [knowledgebases, setKnowledgebases] = useState<Record<AgentName, KnowledgebaseSection[]>>(() => {
     const savedKbs = localStorage.getItem('agentKnowledgebases');
@@ -219,6 +230,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const imageFileInputRef = useRef<HTMLInputElement>(null);
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<any | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -230,6 +242,10 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const attachmentMenuRef = useRef<HTMLDivElement>(null);
   const agentButtonRef = useRef<HTMLButtonElement>(null);
   const agentMenuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
 
   // Refs for Live API
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
@@ -374,10 +390,19 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         agentMenuRef.current && !agentMenuRef.current.contains(event.target as Node) &&
         agentButtonRef.current && !agentButtonRef.current.contains(event.target as Node)
       ) { setIsAgentMenuOpen(false); }
+
+      // Chat history context menu
+      if (openMenuId) {
+        const menu = menuRefs.current[openMenuId];
+        const button = menuButtonRefs.current[openMenuId];
+        if (menu && !menu.contains(event.target as Node) && button && !button.contains(event.target as Node)) {
+          setOpenMenuId(null);
+        }
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [openMenuId]);
 
   useEffect(() => {
     if (!isTtsSupported) return;
@@ -487,29 +512,23 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
 
-    // Prioritize the language setting for more accurate voice selection.
     const targetLang = appSettings.language !== 'auto' ? appSettings.language : 'en';
     utterance.lang = targetLang;
 
     if (voices.length === 0) {
-      // If voices are not loaded yet, the browser will use the utterance.lang to pick a default.
       window.speechSynthesis.speak(utterance);
       return;
     }
     
     let selectedVoice: SpeechSynthesisVoice | undefined;
-
-    // 1. Try to use the voice from settings, but only if its language is compatible.
     const settingsVoice = voices.find(v => v.name === appSettings.voice);
     if (settingsVoice && settingsVoice.lang.startsWith(targetLang)) {
         selectedVoice = settingsVoice;
     }
 
-    // 2. If no settings voice, find the best available voice for the target language.
     if (!selectedVoice) {
       const languageVoices = voices.filter(v => v.lang.startsWith(targetLang));
       if (languageVoices.length > 0) {
-        // Prefer a default voice for the language, or one marked as 'female', or the first one.
         selectedVoice = 
             languageVoices.find(v => v.default) ||
             languageVoices.find(v => v.name.toLowerCase().includes('female')) ||
@@ -517,7 +536,6 @@ export default function App({ onLogout }: { onLogout: () => void }) {
       }
     }
     
-    // 3. As an ultimate fallback, find a suitable English voice if the target language had no voices.
     if (!selectedVoice) {
         const voicePreferences = [
             (v: SpeechSynthesisVoice) => v.lang.startsWith('en') && v.default,
@@ -558,8 +576,9 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     }
     
     let userMessageTextForApi = currentText;
-    if (currentFile) {
-        userMessageTextForApi = `The user has attached a file named "${currentFile.name}".\n\nFile Content:\n"""\n${currentFile.content}\n"""\n\nUser's question about the file:\n"""\n${currentText}\n"""`;
+    if (currentFile && currentFile.content) { 
+        const fileContentForPrompt = `\n\nFile Content:\n"""\n${currentFile.content}\n"""`;
+        userMessageTextForApi = `The user has attached a file named "${currentFile.name}".${fileContentForPrompt}\n\nUser's question about the file:\n"""\n${currentText}\n"""`;
     }
 
     const messageIdPrefix = imageOverride ? 'user-live-' : 'user-';
@@ -889,20 +908,26 @@ export default function App({ onLogout }: { onLogout: () => void }) {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.type === 'text/plain') {
         const reader = new FileReader();
-        reader.onload = (e) => {
-          const textContent = e.target?.result as string;
-          removeAttachments();
-          setAttachedFile({ name: file.name, content: textContent });
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            removeAttachments();
+            const dataPart = base64String.split(';base64,')[1];
+            if (dataPart) {
+                let mimeType = file.type;
+                if (file.name.toLowerCase().endsWith('.docx')) {
+                  mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                } else if (file.name.toLowerCase().endsWith('.doc')) {
+                  mimeType = 'application/msword';
+                }
+                setImageForApi({ mimeType, data: dataPart });
+                // We set an empty content string for non-txt files as we're not displaying their content in the UI.
+                setAttachedFile({ name: file.name, content: '' }); 
+            } else {
+                alert('Failed to read the file content.');
+            }
         };
-        reader.onerror = () => alert("Failed to read the file.");
-        reader.readAsText(file);
-      } else if (/\.(pdf|doc|docx)$/i.test(file.name)) {
-        alert(`Content analysis for "${file.name}" is not yet supported. Only .txt file content can be read. Please try converting your file to .txt for now.`);
-      } else {
-        alert(`File type not supported. Please upload a .txt, .pdf, or Word document.`);
-      }
+        reader.readAsDataURL(file);
     }
     if (event.target) event.target.value = "";
   };
@@ -1073,6 +1098,75 @@ export default function App({ onLogout }: { onLogout: () => void }) {
     if(window.innerWidth < 768) { setIsSidebarOpen(false); }
   };
 
+  const handleScroll = useCallback(() => {
+    if (chatContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+        const threshold = 100; // Show button if scrolled up more than 100px
+        setShowScrollButton(scrollHeight - scrollTop - clientHeight > threshold);
+    }
+  }, []);
+  
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Chat History Management
+  const handleOpenDeleteModal = (session: ChatSession) => {
+    setChatToDelete(session);
+    setIsDeleteModalOpen(true);
+    setOpenMenuId(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!chatToDelete) return;
+
+    const newSessions = activeAgentSessions.filter(s => s.id !== chatToDelete.id);
+    setAllSessions(prev => ({ ...prev, [activeAgent]: newSessions }));
+    
+    if (activeChatId === chatToDelete.id) {
+        if (newSessions.length > 0) {
+            setActiveChatId(newSessions[0].id);
+        } else {
+            handleNewChat(activeAgent);
+        }
+    }
+    
+    setIsDeleteModalOpen(false);
+    setChatToDelete(null);
+  };
+
+  const handleRenameStart = (session: ChatSession) => {
+    setRenamingId(session.id);
+    setRenameValue(session.title);
+    setOpenMenuId(null);
+  };
+
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
+
+  const handleRenameSave = () => {
+    if (renamingId && renameValue.trim()) {
+        const newSessions = activeAgentSessions.map(s => s.id === renamingId ? { ...s, title: renameValue.trim() } : s);
+        setAllSessions(prev => ({ ...prev, [activeAgent]: newSessions }));
+    }
+    setRenamingId(null);
+  };
+  
+  const handleShareChat = () => {
+    alert('Share functionality coming soon!');
+    setOpenMenuId(null);
+  };
+
+  const handleArchiveChat = () => {
+    alert('Archive functionality coming soon!');
+    setOpenMenuId(null);
+  };
+
+
   const isChatView = true;
   const ChatIcon = activeAgentConfig.icon;
 
@@ -1146,14 +1240,49 @@ export default function App({ onLogout }: { onLogout: () => void }) {
             )}
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto p-2 space-y-1 group-[.is-collapsed]:hidden">
-          {filteredSessions.map(session => (
-            <a key={session.id} href="#" onClick={(e) => { e.preventDefault(); setActiveChatId(session.id); if (window.innerWidth < 768) setIsSidebarOpen(false); }} 
-              className={`block p-2 rounded-md truncate transition-colors ${activeChatId === session.id ? 'bg-[var(--color-bg-tertiary)]' : 'hover:bg-[var(--color-bg-tertiary-hover)]'}`}
-            >
-              {session.title}
-            </a>
-          ))}
+        <nav className="flex-1 overflow-y-auto p-2 group-[.is-collapsed]:hidden">
+            <h3 className="px-2 text-sm font-semibold text-[var(--color-text-secondary)] mb-2">Chats History</h3>
+            <div className="space-y-1">
+            {filteredSessions.map(session => (
+              renamingId === session.id ? (
+                <input
+                  ref={renameInputRef}
+                  type="text"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={handleRenameSave}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleRenameSave();
+                    if (e.key === 'Escape') setRenamingId(null);
+                  }}
+                  className="w-full bg-[var(--color-bg-tertiary)] p-2 rounded-md outline-none ring-2 ring-[var(--color-accent)]"
+                />
+              ) : (
+              <div key={session.id} className="relative group/chatitem">
+                <a href="#" onClick={(e) => { e.preventDefault(); setActiveChatId(session.id); if (window.innerWidth < 768) setIsSidebarOpen(false); }} 
+                  className={`block p-2 rounded-md truncate transition-colors pr-8 ${activeChatId === session.id ? 'bg-[var(--color-bg-tertiary)]' : 'hover:bg-[var(--color-bg-tertiary-hover)]'}`}
+                >
+                  {session.title}
+                </a>
+                <button 
+                  ref={el => menuButtonRefs.current[session.id] = el}
+                  onClick={() => setOpenMenuId(session.id === openMenuId ? null : session.id)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-[var(--color-text-secondary)] hover:bg-white/10 hover:text-white opacity-0 group-hover/chatitem:opacity-100 focus:opacity-100"
+                >
+                  <EllipsisHorizontalIcon className="w-5 h-5" />
+                </button>
+                {openMenuId === session.id && (
+                    <div ref={el => menuRefs.current[session.id] = el} className="absolute z-20 left-1/2 -translate-x-1/2 top-full mt-1 w-48 bg-[#2c2c2c] text-white rounded-lg p-2 shadow-lg border border-[var(--color-border)]">
+                        <button onClick={handleShareChat} className="w-full flex items-center gap-3 p-2 text-sm rounded hover:bg-white/10 transition-colors"><ArrowUpTrayIcon className="w-4 h-4" /> Share</button>
+                        <button onClick={() => handleRenameStart(session)} className="w-full flex items-center gap-3 p-2 text-sm rounded hover:bg-white/10 transition-colors"><PencilSquareIcon className="w-4 h-4" /> Rename</button>
+                        <button onClick={handleArchiveChat} className="w-full flex items-center gap-3 p-2 text-sm rounded hover:bg-white/10 transition-colors"><ArchiveBoxIcon className="w-4 h-4" /> Archive</button>
+                        <button onClick={() => handleOpenDeleteModal(session)} className="w-full flex items-center gap-3 p-2 text-sm rounded hover:bg-white/10 text-red-500 transition-colors"><TrashIcon className="w-4 h-4" /> Delete</button>
+                    </div>
+                )}
+              </div>
+              )
+            ))}
+            </div>
         </nav>
         <div className="flex-grow hidden group-[.is-collapsed]:block"></div>
         <div className="p-4 border-t border-[var(--color-border)] mt-auto flex-shrink-0 relative">
@@ -1192,6 +1321,16 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                 </span>
             </div>
           )}
+           <div className="relative group/tooltip mb-2">
+                <button onClick={() => setIsPricingModalOpen(true)} className={`w-full flex items-center gap-3 p-2 rounded-md ${accent.bg} ${accent.hoverBg} transition-colors text-white font-semibold
+                                group-[.is-collapsed]:flex-col group-[.is-collapsed]:w-auto group-[.is-collapsed]:h-auto group-[.is-collapsed]:justify-center group-[.is-collapsed]:gap-1 group-[.is-collapsed]:py-2 group-[.is-collapsed]:px-1 group-[.is-collapsed]:mx-auto`}>
+                    <RocketLaunchIcon className="w-5 h-5" />
+                    <span className="group-[.is-collapsed]:text-xs group-[.is-collapsed]:font-normal">Upgrade</span>
+                </button>
+                <span className="absolute left-full ml-4 top-1/2 -translate-y-1/2 z-20 whitespace-nowrap bg-[var(--color-bg-primary)] text-white text-xs font-semibold py-1.5 px-3 rounded-md border border-[var(--color-border)] opacity-0 invisible group-[.is-collapsed]:group-hover/tooltip:opacity-100 group-[.is-collapsed]:group-hover/tooltip:visible transition-all pointer-events-none">
+                    Upgrade Plan
+                </span>
+            </div>
            <div className="relative group/tooltip">
               <button ref={profileButtonRef} onClick={() => setIsProfileMenuOpen(prev => !prev)} className={`w-full flex items-center gap-3 p-2 rounded-md hover:bg-[var(--color-bg-tertiary-hover)] transition-colors text-left
                             group-[.is-collapsed]:flex-col group-[.is-collapsed]:w-auto group-[.is-collapsed]:h-auto group-[.is-collapsed]:justify-center group-[.is-collapsed]:gap-1 group-[.is-collapsed]:py-2`}>
@@ -1262,7 +1401,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         
         <div className="flex-1 flex overflow-hidden">
             <>
-              <main className={`flex-1 flex-col transition-all duration-300 ease-in-out ${isCameraOn ? (window.innerWidth < 768 ? 'hidden' : 'flex w-1/2') : 'flex w-full'}`}>
+              <main className={`relative flex-1 flex-col transition-all duration-300 ease-in-out ${isCameraOn ? (window.innerWidth < 768 ? 'hidden' : 'flex w-1/2') : 'flex w-full'}`}>
                 {messages.length === 0 && !isLoading ? (
                     <div className="flex flex-1 flex-col items-center justify-center text-center p-4">
                         <h1 className="text-4xl font-bold">{activeAgentConfig.subtitle}</h1>
@@ -1283,7 +1422,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                         </div>
                     </div>
                 ) : (
-                  <div className="flex-1 overflow-y-auto">
+                  <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
                       <div className="space-y-4 p-4 md:p-6">
                         {messages.map((msg, index) =>
                           msg.sender === Sender.AI ? (
@@ -1309,6 +1448,15 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                       )}
                       <div ref={chatEndRef} />
                   </div>
+                )}
+                {showScrollButton && !isLoading && (
+                    <button
+                        onClick={scrollToBottom}
+                        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-10 h-10 flex items-center justify-center bg-[var(--color-accent)] text-white rounded-full shadow-lg transition-all duration-300 ease-in-out opacity-75 hover:opacity-100 animate-fade-in"
+                        aria-label="Scroll to bottom"
+                    >
+                        <ArrowDownIcon className="w-5 h-5" />
+                    </button>
                 )}
               </main>
               <aside className={`relative bg-black transition-all duration-300 ease-in-out ${isCameraOn ? 'w-full fixed inset-0 z-20 md:relative md:w-1/2 md:border-l md:border-[var(--color-border)]' : 'w-0'} overflow-hidden group`}>
@@ -1386,7 +1534,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         </div>
 
         {isChatView && !isCameraOn && (
-          <footer className={`bg-[var(--color-bg-primary)]/80 backdrop-blur-md p-4 border-t border-[var(--color-border)] flex-shrink-0 z-10`}>
+          <footer className={`bg-[var(--color-bg-primary)]/80 backdrop-blur-md pt-4 pb-2 px-4 border-t border-[var(--color-border)] flex-shrink-0 z-10`}>
             <div className="max-w-3xl mx-auto">
               {imageForPreview && (
                 <div className="relative mb-2 w-fit">
@@ -1408,7 +1556,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               <div className={`relative flex items-end gap-2 bg-[var(--color-bg-primary)] rounded-xl p-2 focus-within:ring-2 ${accent.ring} transition-shadow border border-transparent focus-within:border-[var(--color-accent)]`}>
                   {isAttachmentMenuOpen && (
                   <div
-                    ref={attachmentMenuRef}
+                    ref={attachmentButtonRef}
                     className="absolute bottom-full mb-2 w-48 bg-[var(--color-bg-primary)]/80 backdrop-blur-sm rounded-lg border border-[var(--color-border)] shadow-xl p-2 z-20 transition-all duration-200 ease-out transform origin-bottom"
                       style={{
                       opacity: isAttachmentMenuOpen ? 1 : 0,
@@ -1448,7 +1596,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                   <PlusCircleIcon className="w-5 h-5" />
                 </button>
                 <input type="file" ref={imageFileInputRef} onChange={handleImageChange} className="hidden" accept="image/*"/>
-                <input type="file" ref={docFileInputRef} onChange={handleFileChange} className="hidden" accept=".txt,.pdf,.doc,.docx" />
+                <input type="file" ref={docFileInputRef} onChange={handleFileChange} className="hidden" accept=".txt,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <textarea
                   ref={textareaRef} value={userInput} onChange={(e) => setUserInput(e.target.value)}
                   onKeyDown={(e) => {
@@ -1471,6 +1619,12 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                   <SendIcon className="w-5 h-5" />
                 </button>
               </div>
+              <p className="text-center text-xs text-[var(--color-text-secondary)] pt-2 px-4">
+                  AVA can make mistakes. Check important info.{' '}
+                  <button onClick={() => setIsCookieModalOpen(true)} className="hover:underline focus:outline-none">
+                      See Cookie Preferences.
+                  </button>
+              </p>
             </div>
           </footer>
         )}
@@ -1542,6 +1696,20 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         <AdminPanelModal
             isOpen={isAdminPanelModalOpen}
             onClose={() => setIsAdminPanelModalOpen(false)}
+        />
+        <PricingModal
+            isOpen={isPricingModalOpen}
+            onClose={() => setIsPricingModalOpen(false)}
+        />
+        <DeleteChatModal
+            isOpen={isDeleteModalOpen}
+            onClose={() => setIsDeleteModalOpen(false)}
+            onConfirm={handleConfirmDelete}
+            chatTitle={chatToDelete?.title || ''}
+        />
+        <CookiePreferenceModal
+            isOpen={isCookieModalOpen}
+            onClose={() => setIsCookieModalOpen(false)}
         />
       </div>
     </div>

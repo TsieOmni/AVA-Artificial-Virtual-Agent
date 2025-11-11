@@ -17,7 +17,7 @@ const AIMessage: React.FC<{ message: Message; speak: (text: string) => void; pre
     return (
       <div className={`w-full bg-[var(--color-bg-tertiary)]/30 py-4 md:py-6 border-b border-[var(--color-border)] ${showTopBorder ? 'border-t' : ''}`}>
         <div className="max-w-3xl mx-auto px-4 md:px-0">
-            <div className="prose prose-sm dark:prose-invert prose-p:my-0 text-[var(--color-text-primary)] break-words pt-0.5">
+            <div className="prose dark:prose-invert prose-p:my-0 text-[var(--color-text-primary)] break-words pt-0.5 text-[13px] md:text-sm">
               {message.visualization && (
                 <img
                   src={message.visualization}

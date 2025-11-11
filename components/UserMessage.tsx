@@ -20,7 +20,7 @@ const UserMessage: React.FC<{ message: Message; accentColor: AppSettings['accent
                 <span className="text-sm font-medium truncate">{message.fileName}</span>
               </div>
             )}
-            {message.text && <p className="break-words">{message.text}</p>}
+            {message.text && <p className="break-words text-[13px] md:text-sm">{message.text}</p>}
             <div className="text-right text-xs text-white/70 mt-1 ml-4 select-none">
                 {message.timestamp}
             </div>
