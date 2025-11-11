@@ -1,10 +1,8 @@
-
-
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Sender, Message, ImageForApi, ChatSession, KnowledgebaseSection, AgentName, InteractiveElement } from './types';
 import { geminiService } from './services/geminiService';
 // FIX: Import `AvaLogo` to resolve 'Cannot find name' error.
-import { SendIcon, MicrophoneIcon, XCircleIcon, SpeakerWaveIcon, SpeakerXMarkIcon, VideoCameraIcon, CameraSwitchIcon, Bars3Icon, PencilSquareIcon, MagnifyingGlassIcon, BookOpenIcon, UserCircleIcon, WrenchScrewdriverIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, PlusCircleIcon, PhotoIcon, DocumentArrowUpIcon, DocumentTextIcon, CameraIcon, ArrowUpTrayIcon, XMarkIcon, PlusIcon, UsersIcon, HomeIcon, AvaLogo, ArrowLeftCircleIcon, ArrowRightCircleIcon, CubeIcon } from './components/Icons';
+import { SendIcon, MicrophoneIcon, XCircleIcon, SpeakerWaveIcon, SpeakerXMarkIcon, VideoCameraIcon, CameraSwitchIcon, Bars3Icon, PencilSquareIcon, MagnifyingGlassIcon, BookOpenIcon, UserCircleIcon, WrenchScrewdriverIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, PlusCircleIcon, PhotoIcon, DocumentArrowUpIcon, DocumentTextIcon, CameraIcon, ArrowUpTrayIcon, XMarkIcon, PlusIcon, UsersIcon, HomeIcon, AvaLogo, ArrowLeftIcon, CubeIcon } from './components/Icons';
 import { ACCENT_COLOR_MAP, AGENT_CONFIG } from './config';
 import AccountModal from './components/AccountModal';
 import PersonalizationModal, { PersonalizationSettings } from './components/PersonalizationModal';
@@ -1212,8 +1210,16 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         <header className="bg-[var(--color-bg-primary)]/70 backdrop-blur-md p-4 border-b border-[var(--color-border)] shadow-sm flex-shrink-0 z-10 flex justify-between items-center">
             <div className="flex items-center gap-1">
               <div className="relative group/tooltip">
-                <button onClick={() => setIsSidebarOpen(prev => !prev)} className="p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] rounded-full hover:bg-[var(--color-bg-tertiary-hover)] transition-colors" aria-label={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}>
-                    {isSidebarOpen ? <ArrowLeftCircleIcon className="w-6 h-6" /> : <ArrowRightCircleIcon className="w-6 h-6" />}
+                <button 
+                  onClick={() => setIsSidebarOpen(prev => !prev)} 
+                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors duration-200
+                    ${isSidebarOpen 
+                        ? 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary-hover)] hover:text-[var(--color-text-primary)]' 
+                        : `${accent.bg} text-white ${accent.hoverBg}`
+                    }`}
+                  aria-label={isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+                >
+                    {isSidebarOpen ? <ArrowLeftIcon className="w-5 h-5" /> : <Bars3Icon className="w-5 h-5" />}
                 </button>
                 <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap bg-[var(--color-bg-primary)] text-white text-xs font-semibold py-1.5 px-3 rounded-md border border-[var(--color-border)] opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none z-20">
                     {isSidebarOpen ? 'Close sidebar' : 'Open sidebar'}
@@ -1336,19 +1342,27 @@ export default function App({ onLogout }: { onLogout: () => void }) {
                           return null;
                         })}
                       </div>
-                      {(isAiResponding || liveAiComment) && (
-                        <div className="absolute bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 w-full max-w-md px-4 flex flex-col items-center gap-2 animate-fade-in z-10">
-                            {isAiResponding && (
-                                <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 py-2 px-4 rounded-lg text-center text-white text-sm shadow-lg flex items-center justify-center gap-3">
-                                    <WaveformIndicator />
-                                </div>
-                            )}
-                            {liveAiComment && (
-                                <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-3 rounded-lg text-center text-white text-sm shadow-lg">
-                                    {liveAiComment}
-                                </div>
-                            )}
-                        </div>
+                      
+                      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 transition-opacity duration-300">
+                        {isMicActive ? (
+                            <div className="bg-black/50 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-lg animate-pulse">
+                                <MicrophoneIcon className="w-5 h-5" />
+                                <span>Listening</span>
+                            </div>
+                        ) : isAiResponding ? (
+                            <div className="bg-black/50 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-lg">
+                                <WaveformIndicator />
+                                <span>AI talking</span>
+                            </div>
+                        ) : null}
+                      </div>
+
+                      {liveAiComment && (
+                          <div className="absolute bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 w-full max-w-md px-4 flex flex-col items-center gap-2 animate-fade-in z-10">
+                              <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-3 rounded-lg text-center text-white text-sm shadow-lg">
+                                  {liveAiComment}
+                              </div>
+                          </div>
                       )}
                     </>
                   )}

@@ -84,6 +84,42 @@
         animation: wave 1.2s ease-in-out infinite;
         transform-origin: bottom;
       }
+      
+      /* Login page animations */
+      @keyframes slide-in-fade {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .animate-slide-in-fade {
+        animation: slide-in-fade 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      }
+      
+      @keyframes fade-in {
+        from { opacity: 0; transform: scale(0.98); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      
+      @keyframes slide-out-fade {
+        from {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+      }
+
+      .animate-slide-out-fade {
+        animation: slide-out-fade 0.7s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards;
+      }
     </style>
   <script type="importmap">
 {
